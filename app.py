@@ -95,6 +95,60 @@ def run_pipeline(df, cv_choice):
         "n_pca_components": X_train_pca.shape[1],
     }
 
+# ── Preprocessing preview (runs at startup, no model needed) ─────────────────
+@st.cache_data
+def run_preprocessing_preview(df):
+    X = df.drop(["LoanApproved", "ApplicationDate"], axis=1)
+    y = df["LoanApproved"]
+
+    X_train, _, y_train, _ = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+    X_train.columns = X_train.columns.str.strip()
+
+    # Outlier removal
+    for c in [c for c in ["AnnualIncome", "MonthlyIncome", "LoanAmount"] if c in X_train.columns]:
+        Q1, Q3 = X_train[c].quantile(0.25), X_train[c].quantile(0.75)
+        IQR = Q3 - Q1
+        X_train = X_train[(X_train[c] > Q1 - 1.5 * IQR) & (X_train[c] < Q3 + 1.5 * IQR)]
+        y_train = y_train[X_train.index]
+
+    # Encode
+    object_cols = X_train.select_dtypes(include="object").columns
+    for col in object_cols:
+        le = LabelEncoder()
+        X_train[col] = le.fit_transform(X_train[col])
+    bool_cols = X_train.select_dtypes(include="bool").columns
+    X_train[bool_cols] = X_train[bool_cols].astype(int)
+
+    # Scale
+    scaler = StandardScaler()
+    X_train_scaled = pd.DataFrame(scaler.fit_transform(X_train), columns=X_train.columns, index=X_train.index)
+
+    # SMOTE
+    smote = SMOTE(random_state=42)
+    X_train_res, y_train_res = smote.fit_resample(X_train_scaled, y_train)
+
+    # Variance threshold
+    var = VarianceThreshold(threshold=0.9)
+    X_train_var = var.fit_transform(X_train_res)
+    features_after = X_train_res.columns[var.get_support()]
+    X_train_final = pd.DataFrame(X_train_var, columns=features_after)
+
+    # PCA
+    pca = PCA(n_components=0.95)
+    X_train_pca = pca.fit_transform(X_train_final)
+
+    return {
+        "rows_after_outlier": X_train.shape[0],
+        "y_train_res": y_train_res,
+        "n_features_before": len(X_train_res.columns),
+        "n_features_after": X_train_final.shape[1],
+        "n_pca_components": X_train_pca.shape[1],
+    }
+
+prep_preview = run_preprocessing_preview(df)
+
 # ── Tabs ─────────────────────────────────────────────────────────────────────
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Data Overview",
@@ -236,25 +290,20 @@ print(X_train.isnull().sum())
 # TAB 3 — Preprocessing & Reduction
 # ════════════════════════════════════════════════════════════════════════════
 with tab3:
-    st.info("Train the model in the **Train & Evaluate** tab first — preprocessing stats will appear here.")
+    st.subheader("After Outlier Removal")
+    st.write(f"Training rows after IQR filtering: **{prep_preview['rows_after_outlier']}**")
 
-    if "pipeline" in st.session_state:
-        p = st.session_state["pipeline"]
+    st.subheader("Class Distribution After SMOTE")
+    fig, ax = plt.subplots()
+    sns.countplot(x=prep_preview["y_train_res"], ax=ax)
+    ax.set_title("Loan Approval Distribution (After SMOTE)")
+    st.pyplot(fig); plt.close()
 
-        st.subheader("After Outlier Removal")
-        st.write(f"Training rows after IQR filtering: **{p['X_train'].shape[0]}**")
-
-        st.subheader("Class Distribution After SMOTE")
-        fig, ax = plt.subplots()
-        sns.countplot(x=p["y_train_res"], ax=ax)
-        ax.set_title("Loan Approval Distribution (After SMOTE)")
-        st.pyplot(fig); plt.close()
-
-        st.subheader("Dimensionality Reduction")
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Features before VarianceThreshold", p["n_features_before"])
-        c2.metric("Features after VarianceThreshold",  p["n_features_after"])
-        c3.metric("PCA components (95% variance)",     p["n_pca_components"])
+    st.subheader("Dimensionality Reduction")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Features before VarianceThreshold", prep_preview["n_features_before"])
+    c2.metric("Features after VarianceThreshold",  prep_preview["n_features_after"])
+    c3.metric("PCA components (95% variance)",     prep_preview["n_pca_components"])
 
     with st.expander("📄 View Original Notebook Code — Preprocessing & Reduction"):
         st.code("""\
@@ -382,10 +431,11 @@ with tab5:
         st.warning("Please train the model first in the **Train & Evaluate** tab.")
     else:
         p = st.session_state["pipeline"]
-        feature_cols    = p["X_train"].columns.tolist()
-        label_encoders  = p["label_encoders"]
+        # Only show the columns that survived VarianceThreshold (the ones actually used by the model)
+        feature_cols   = list(p["features_after"])
+        label_encoders = p["label_encoders"]
 
-        st.markdown("Fill in the applicant details below:")
+        st.markdown(f"Fill in the **{len(feature_cols)} features** used by the trained model:")
         input_data = {}
         cols_left, cols_right = st.columns(2)
 
@@ -413,15 +463,24 @@ with tab5:
         if st.button("🔮 Predict"):
             input_df = pd.DataFrame([input_data])
 
+            # Encode categoricals that are in this reduced feature set
             for col, le in label_encoders.items():
                 if col in input_df.columns:
                     input_df[col] = le.transform(input_df[col])
 
-            input_df     = input_df.reindex(columns=feature_cols, fill_value=0)
-            input_scaled = pd.DataFrame(p["scaler"].transform(input_df), columns=feature_cols)
-            input_var    = input_scaled[p["features_after"]]
-            input_pca    = p["pca"].transform(input_var)
-            prediction   = p["grid"].predict(input_pca)[0]
+            # Scale using only the features_after columns
+            # First build a full-column frame for the scaler, fill unseen cols with 0
+            full_input = pd.DataFrame([{c: 0 for c in p["X_train"].columns}])
+            for col in feature_cols:
+                full_input[col] = input_df[col].values
+            full_scaled  = pd.DataFrame(p["scaler"].transform(full_input), columns=p["X_train"].columns)
+
+            # Keep only variance-selected features
+            input_var  = full_scaled[p["features_after"]]
+
+            # PCA → predict
+            input_pca  = p["pca"].transform(input_var)
+            prediction = p["grid"].predict(input_pca)[0]
 
             st.divider()
             if prediction == 1:
