@@ -20,13 +20,8 @@ st.markdown("Upload your loan dataset and run the full ML pipeline: preprocessin
 
 # ── 1. File Upload ──────────────────────────────────────────────────────────
 st.header("1. Upload Dataset")
-uploaded_file = st.file_uploader("Upload a CSV file (must contain 'LoanApproved' and 'ApplicationDate' columns)", type=["csv"])
 
-if uploaded_file is None:
-    st.info("Please upload a CSV file to get started.")
-    st.stop()
-
-df = pd.read_csv(uploaded_file)
+df = pd.read_csv(r"Loan.csv")
 df = pd.DataFrame(df)
 
 st.subheader("Data Preview")
