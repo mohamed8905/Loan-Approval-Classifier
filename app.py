@@ -14,12 +14,14 @@ from sklearn.decomposition import PCA
 
 st.set_page_config(page_title="Loan Approval Classifier", layout="wide")
 st.title("🏦 Loan Approval Classifier")
-st.markdown("Upload your loan dataset and run the full ML pipeline: preprocessing → dimensionality reduction → SVM training.")
+st.markdown("ML pipeline: preprocessing → dimensionality reduction → SVM training.")
 
-# ── File Upload (shared across tabs) ────────────────────────────────────────
-st.header("Upload Dataset")
-df = pd.read_csv("Loan.csv")
-
+# ── Load data ────────────────────────────────────────────────────────────────
+try:
+    df = pd.read_csv("Loan.csv")
+except FileNotFoundError:
+    st.error("❌ `Loan.csv` not found. Make sure it is in the same directory as `app.py`.")
+    st.stop()
 
 # ── Full pipeline function ───────────────────────────────────────────────────
 def run_pipeline(df, cv_choice):
@@ -81,20 +83,12 @@ def run_pipeline(df, cv_choice):
     grid.fit(X_train_pca, y_train_res)
 
     return {
-        "grid": grid,
-        "scaler": scaler,
-        "label_encoders": label_encoders,
-        "var": var,
-        "pca": pca,
-        "features_after": features_after,
-        "X_train": X_train,
-        "X_test": X_test,
-        "X_train_res": X_train_res,
-        "y_train": y_train,
-        "y_train_res": y_train_res,
-        "y_test": y_test,
-        "X_test_pca": X_test_pca,
-        "best_params": grid.best_params_,
+        "grid": grid, "scaler": scaler, "label_encoders": label_encoders,
+        "var": var, "pca": pca, "features_after": features_after,
+        "X_train": X_train, "X_test": X_test,
+        "X_train_res": X_train_res, "y_train": y_train,
+        "y_train_res": y_train_res, "y_test": y_test,
+        "X_test_pca": X_test_pca, "best_params": grid.best_params_,
         "predictions": grid.predict(X_test_pca),
         "n_features_before": len(X_train_res.columns),
         "n_features_after": X_train_final.shape[1],
@@ -125,14 +119,37 @@ with tab1:
 
     X_raw = df.drop(["LoanApproved", "ApplicationDate"], axis=1)
     y_raw = df["LoanApproved"]
-    X_train_raw, X_test_raw, _, _ = train_test_split(X_raw, y_raw, test_size=0.2, random_state=42, stratify=y_raw)
-
+    X_train_raw, X_test_raw, _, _ = train_test_split(
+        X_raw, y_raw, test_size=0.2, random_state=42, stratify=y_raw
+    )
     c1, c2 = st.columns(2)
     c1.metric("Train samples", X_train_raw.shape[0])
     c2.metric("Test samples",  X_test_raw.shape[0])
 
     with st.expander("Training set descriptive statistics"):
         st.dataframe(X_train_raw.describe())
+
+    with st.expander("📄 View Original Notebook Code — Data Loading & Split"):
+        st.code("""\
+df = pd.read_csv("C:\\\\Users\\\\aa\\\\OneDrive\\\\Desktop\\\\Data sets\\\\Loan.csv")
+df = pd.DataFrame(df)
+df.head()
+
+print(f"Shape: {df.shape}")
+
+X = df.drop(["LoanApproved", "ApplicationDate"], axis=1)
+y = df["LoanApproved"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+print("Train shape:", X_train.shape)
+print("Test shape:",  X_test.shape)
+
+print(df.info())
+X_train.describe()
+""", language="python")
 
 # ════════════════════════════════════════════════════════════════════════════
 # TAB 2 — EDA
@@ -185,43 +202,42 @@ with tab2:
         st.dataframe(missing_cols.rename("Missing Count"))
 
     with st.expander("📄 View Original Notebook Code — EDA"):
-        st.code("""
-# Class distribution
+        st.code("""\
 sns.countplot(x=y_train)
 plt.title("Loan Approval Distribution")
 plt.show()
 
-# Feature distributions
-cols = ["Age","AnnualIncome","Experience","LoanAmount","MonthlyIncome","CreditScore"]
-fig, ax = plt.subplots(2, 3, figsize=(15,10))
+X_train.columns = X_train.columns.str.strip()
+cols = ["Age", "AnnualIncome", "Experience", "LoanAmount", "MonthlyIncome", "CreditScore"]
+fig, ax = plt.subplots(2, 3, figsize=(15, 10))
 ax = ax.flatten()
 for i, col in enumerate(cols):
     sns.histplot(X_train[col], kde=True, ax=ax[i])
     ax[i].set_title(f"Distribution for {col}")
+    ax[i].set_xlabel(f"{col}")
+    ax[i].set_ylabel("Count")
 plt.tight_layout()
 plt.show()
 
-# Correlation heatmap
-plt.figure(figsize=(8,10))
+plt.figure(figsize=(8, 10))
 sns.heatmap(X_train.corr(numeric_only=True), cmap="coolwarm")
 plt.title("Correlation Matrix")
 plt.show()
 
-# Employment vs Approval
 sns.countplot(x=X_train['EmploymentStatus'], hue=y_train)
 plt.xticks(rotation=45)
 plt.title("Employment vs Approval")
 plt.show()
 
-# Missing values
 print(X_train.isnull().sum())
-        """, language="python")
+""", language="python")
 
 # ════════════════════════════════════════════════════════════════════════════
 # TAB 3 — Preprocessing & Reduction
 # ════════════════════════════════════════════════════════════════════════════
 with tab3:
     st.info("Train the model in the **Train & Evaluate** tab first — preprocessing stats will appear here.")
+
     if "pipeline" in st.session_state:
         p = st.session_state["pipeline"]
 
@@ -241,7 +257,7 @@ with tab3:
         c3.metric("PCA components (95% variance)",     p["n_pca_components"])
 
     with st.expander("📄 View Original Notebook Code — Preprocessing & Reduction"):
-        st.code("""
+        st.code("""\
 # Outlier removal (IQR)
 col = ["AnnualIncome", "MonthlyIncome", "LoanAmount"]
 for c in col:
@@ -254,38 +270,49 @@ for c in col:
     y_train = y_train[X_train.index]
 X_train, X_test = X_train.align(X_test, join='left', axis=1, fill_value=0)
 
-# Label encoding & standard scaling
+# Label encoding
 object_cols = X_train.select_dtypes(include='object').columns
 LE = LabelEncoder()
 for col in object_cols:
     X_train[col] = LE.fit_transform(X_train[col])
     X_test[col]  = LE.transform(X_test[col])
 
+bool_cols = X_train.select_dtypes(include='bool').columns
+X_train[bool_cols] = X_train[bool_cols].astype(int)
+X_test[bool_cols]  = X_test[bool_cols].astype(int)
+
+# StandardScaler — crucial for SVM: ensures all features contribute equally
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
 X_test_scaled  = scaler.transform(X_test)
+
+X_train_scaled = pd.DataFrame(X_train_scaled, columns=X_train.columns, index=X_train.index)
+X_test_scaled  = pd.DataFrame(X_test_scaled,  columns=X_test.columns,  index=X_test.index)
 
 # SMOTE oversampling
 smote = SMOTE(random_state=42)
 X_train_res, y_train_res = smote.fit_resample(X_train_scaled, y_train)
 
-# Variance threshold
+# Variance threshold (0.9 — effective after StandardScaler shifts variance toward 1.0)
 var = VarianceThreshold(threshold=0.9)
 X_train_var = var.fit_transform(X_train_res)
 X_test_var  = var.transform(X_test_scaled)
 
-# PCA (95% variance retained)
+# PCA (retain 95% of variance)
 pca = PCA(n_components=0.95)
 X_train_pca = pca.fit_transform(X_train_var)
 X_test_pca  = pca.transform(X_test_var)
-        """, language="python")
+print(f"Number of components chosen: {X_train_pca.shape[1]}")
+""", language="python")
 
 # ════════════════════════════════════════════════════════════════════════════
 # TAB 4 — Train & Evaluate
 # ════════════════════════════════════════════════════════════════════════════
 with tab4:
-    cv_choice = st.selectbox("Cross-validation folds", [3, 5], index=1,
-                              help="CV=5 is more reliable; CV=3 is faster.")
+    cv_choice = st.selectbox(
+        "Cross-validation folds", [3, 5], index=1,
+        help="CV=5 is more reliable; CV=3 is faster."
+    )
 
     if st.button("🚀 Train Model"):
         with st.spinner(f"Running full pipeline + GridSearchCV (CV={cv_choice})…"):
@@ -313,6 +340,38 @@ with tab4:
     else:
         st.info("Click **Train Model** above to run the pipeline.")
 
+    with st.expander("📄 View Original Notebook Code — SVM Training & Evaluation"):
+        st.code("""\
+from sklearn.model_selection import GridSearchCV
+from sklearn.svm import SVC
+
+param_grid = {
+    'C':      [0.1, 1, 10, 100],
+    'gamma':  ['scale', 'auto'],
+    'kernel': ['rbf'],
+}
+
+# CV=5 — more reliable (validates across more subsets)
+grid = GridSearchCV(SVC(), param_grid, refit=True, verbose=2, cv=5)
+grid.fit(X_train_res_pca, y_train_res)
+print("best parameters:", grid.best_params_)
+
+grid_predictions = grid.predict(X_test_pca)
+print(classification_report(y_test, grid_predictions))
+
+# CV=3 — slightly faster, marginally higher reported accuracy
+grid = GridSearchCV(SVC(), param_grid, refit=True, verbose=2, cv=3)
+grid.fit(X_train_res_pca, y_train_res)
+print("best parameters:", grid.best_params_)
+
+grid_predictions = grid.predict(X_test_pca)
+print(classification_report(y_test, grid_predictions))
+
+# Model Evaluation Insight:
+# CV=5 + C=100 → ~90% accuracy (preferred — more robust validation)
+# CV=3          → ~91% accuracy (could be a lucky split)
+""", language="python")
+
 # ════════════════════════════════════════════════════════════════════════════
 # TAB 5 — Manual Prediction
 # ════════════════════════════════════════════════════════════════════════════
@@ -323,11 +382,10 @@ with tab5:
         st.warning("Please train the model first in the **Train & Evaluate** tab.")
     else:
         p = st.session_state["pipeline"]
-        feature_cols = p["X_train"].columns.tolist()
-        label_encoders = p["label_encoders"]
+        feature_cols    = p["X_train"].columns.tolist()
+        label_encoders  = p["label_encoders"]
 
         st.markdown("Fill in the applicant details below:")
-
         input_data = {}
         cols_left, cols_right = st.columns(2)
 
@@ -338,44 +396,38 @@ with tab5:
                     options = list(label_encoders[col].classes_)
                     input_data[col] = st.selectbox(col, options, key=f"pred_{col}")
                 elif set(p["X_train"][col].dropna().unique()).issubset({0, 1}):
-                    input_data[col] = st.selectbox(col, [0, 1], format_func=lambda x: "Yes" if x else "No", key=f"pred_{col}")
+                    input_data[col] = st.selectbox(
+                        col, [0, 1],
+                        format_func=lambda x: "Yes" if x else "No",
+                        key=f"pred_{col}"
+                    )
                 else:
                     min_val  = float(p["X_train"][col].min())
                     max_val  = float(p["X_train"][col].max())
                     mean_val = float(p["X_train"][col].mean())
                     input_data[col] = st.number_input(
-                        col,
-                        min_value=min_val,
-                        max_value=max_val,
-                        value=round(mean_val, 2),
-                        key=f"pred_{col}",
+                        col, min_value=min_val, max_value=max_val,
+                        value=round(mean_val, 2), key=f"pred_{col}"
                     )
 
         if st.button("🔮 Predict"):
             input_df = pd.DataFrame([input_data])
 
-            # Encode categoricals
             for col, le in label_encoders.items():
                 if col in input_df.columns:
                     input_df[col] = le.transform(input_df[col])
 
-            # Align to training columns
-            input_df = input_df.reindex(columns=feature_cols, fill_value=0)
-
-            # Scale
+            input_df     = input_df.reindex(columns=feature_cols, fill_value=0)
             input_scaled = pd.DataFrame(p["scaler"].transform(input_df), columns=feature_cols)
-
-            # Variance threshold — keep selected features only
-            input_var = input_scaled[p["features_after"]]
-
-            # PCA
-            input_pca = p["pca"].transform(input_var)
-
-            # Predict
-            prediction = p["grid"].predict(input_pca)[0]
+            input_var    = input_scaled[p["features_after"]]
+            input_pca    = p["pca"].transform(input_var)
+            prediction   = p["grid"].predict(input_pca)[0]
 
             st.divider()
             if prediction == 1:
                 st.success("✅ **Loan Approved** — The model predicts this applicant is likely to be approved.")
             else:
                 st.error("❌ **Loan Denied** — The model predicts this applicant is unlikely to be approved.")
+
+    with st.expander("📄 View Original Notebook Code — This tab has no original code"):
+        st.info("The Manual Prediction tab is a Streamlit-only feature — it was not part of the original notebook. It applies the trained pipeline to a single new applicant in real time.")
