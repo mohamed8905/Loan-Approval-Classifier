@@ -177,7 +177,45 @@ with tab2:
 
     st.subheader("Missing Values")
     missing = X_tr.isnull().sum()
-    st.dataframe(missing[missing > 0].rename("Missing Count") if missing.any() else pd.Series({"No missing values": 0}))
+    missing_cols = missing[missing > 0]
+    if missing_cols.empty:
+        st.success("✅ No missing values found in the training set.")
+    else:
+        st.warning(f"⚠️ {len(missing_cols)} column(s) have missing values.")
+        st.dataframe(missing_cols.rename("Missing Count"))
+
+    with st.expander("📄 View Original Notebook Code — EDA"):
+        st.code("""
+# Class distribution
+sns.countplot(x=y_train)
+plt.title("Loan Approval Distribution")
+plt.show()
+
+# Feature distributions
+cols = ["Age","AnnualIncome","Experience","LoanAmount","MonthlyIncome","CreditScore"]
+fig, ax = plt.subplots(2, 3, figsize=(15,10))
+ax = ax.flatten()
+for i, col in enumerate(cols):
+    sns.histplot(X_train[col], kde=True, ax=ax[i])
+    ax[i].set_title(f"Distribution for {col}")
+plt.tight_layout()
+plt.show()
+
+# Correlation heatmap
+plt.figure(figsize=(8,10))
+sns.heatmap(X_train.corr(numeric_only=True), cmap="coolwarm")
+plt.title("Correlation Matrix")
+plt.show()
+
+# Employment vs Approval
+sns.countplot(x=X_train['EmploymentStatus'], hue=y_train)
+plt.xticks(rotation=45)
+plt.title("Employment vs Approval")
+plt.show()
+
+# Missing values
+print(X_train.isnull().sum())
+        """, language="python")
 
 # ════════════════════════════════════════════════════════════════════════════
 # TAB 3 — Preprocessing & Reduction
@@ -201,6 +239,46 @@ with tab3:
         c1.metric("Features before VarianceThreshold", p["n_features_before"])
         c2.metric("Features after VarianceThreshold",  p["n_features_after"])
         c3.metric("PCA components (95% variance)",     p["n_pca_components"])
+
+    with st.expander("📄 View Original Notebook Code — Preprocessing & Reduction"):
+        st.code("""
+# Outlier removal (IQR)
+col = ["AnnualIncome", "MonthlyIncome", "LoanAmount"]
+for c in col:
+    Q1 = X_train[c].quantile(0.25)
+    Q3 = X_train[c].quantile(0.75)
+    IQR = Q3 - Q1
+    lower = Q1 - 1.5 * IQR
+    upper = Q3 + 1.5 * IQR
+    X_train = X_train[(X_train[c] > lower) & (X_train[c] < upper)]
+    y_train = y_train[X_train.index]
+X_train, X_test = X_train.align(X_test, join='left', axis=1, fill_value=0)
+
+# Label encoding & standard scaling
+object_cols = X_train.select_dtypes(include='object').columns
+LE = LabelEncoder()
+for col in object_cols:
+    X_train[col] = LE.fit_transform(X_train[col])
+    X_test[col]  = LE.transform(X_test[col])
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled  = scaler.transform(X_test)
+
+# SMOTE oversampling
+smote = SMOTE(random_state=42)
+X_train_res, y_train_res = smote.fit_resample(X_train_scaled, y_train)
+
+# Variance threshold
+var = VarianceThreshold(threshold=0.9)
+X_train_var = var.fit_transform(X_train_res)
+X_test_var  = var.transform(X_test_scaled)
+
+# PCA (95% variance retained)
+pca = PCA(n_components=0.95)
+X_train_pca = pca.fit_transform(X_train_var)
+X_test_pca  = pca.transform(X_test_var)
+        """, language="python")
 
 # ════════════════════════════════════════════════════════════════════════════
 # TAB 4 — Train & Evaluate
