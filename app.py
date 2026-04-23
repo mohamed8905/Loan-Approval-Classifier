@@ -215,16 +215,18 @@ with tab2:
     X_tr, _, y_tr, _ = train_test_split(X_eda, y_eda, test_size=0.2, random_state=42, stratify=y_eda)
 
     st.subheader("Loan Approval Distribution")
-    fig, ax = plt.subplots(figsize=(3, 2.5))
-    sns.countplot(x=y_tr, ax=ax)
-    ax.set_title("Loan Approval Distribution (Train)")
-    plt.tight_layout()
-    st.pyplot(fig, use_container_width=False); plt.close()
+    col_a, col_b = st.columns([1, 2])
+    with col_a:
+        fig, ax = plt.subplots(figsize=(4, 3))
+        sns.countplot(x=y_tr, ax=ax)
+        ax.set_title("Loan Approval Distribution (Train)")
+        plt.tight_layout()
+        st.pyplot(fig, use_container_width=True); plt.close()
 
     st.subheader("Feature Distributions")
     num_cols = [c for c in ["Age", "AnnualIncome", "Experience", "LoanAmount", "MonthlyIncome", "CreditScore"] if c in X_tr.columns]
     if num_cols:
-        fig, axes = plt.subplots(2, 3, figsize=(9, 5))
+        fig, axes = plt.subplots(2, 3, figsize=(11, 6))
         axes = axes.flatten()
         for i, col in enumerate(num_cols):
             sns.histplot(X_tr[col], kde=True, ax=axes[i])
@@ -233,22 +235,26 @@ with tab2:
         for j in range(i + 1, len(axes)):
             axes[j].set_visible(False)
         plt.tight_layout()
-        st.pyplot(fig, use_container_width=False); plt.close()
+        st.pyplot(fig, use_container_width=True); plt.close()
 
     st.subheader("Correlation Matrix")
-    fig, ax = plt.subplots(figsize=(5, 4))
-    sns.heatmap(X_tr.corr(numeric_only=True), cmap="coolwarm", ax=ax, annot=False)
-    ax.set_title("Correlation Matrix")
-    plt.tight_layout()
-    st.pyplot(fig, use_container_width=False); plt.close()
+    col_a, col_b = st.columns([1, 1])
+    with col_a:
+        fig, ax = plt.subplots(figsize=(5, 4))
+        sns.heatmap(X_tr.corr(numeric_only=True), cmap="coolwarm", ax=ax, annot=False)
+        ax.set_title("Correlation Matrix")
+        plt.tight_layout()
+        st.pyplot(fig, use_container_width=True); plt.close()
 
     if "EmploymentStatus" in X_tr.columns:
         st.subheader("Employment Status vs Loan Approval")
-        fig, ax = plt.subplots(figsize=(4, 2.5))
-        sns.countplot(x=X_tr["EmploymentStatus"], hue=y_tr, ax=ax)
-        plt.xticks(rotation=45, fontsize=8); ax.set_title("Employment vs Approval")
-        plt.tight_layout()
-        st.pyplot(fig, use_container_width=False); plt.close()
+        col_a, col_b = st.columns([1, 1])
+        with col_a:
+            fig, ax = plt.subplots(figsize=(5, 3))
+            sns.countplot(x=X_tr["EmploymentStatus"], hue=y_tr, ax=ax)
+            plt.xticks(rotation=45, fontsize=8); ax.set_title("Employment vs Approval")
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True); plt.close()
 
     st.subheader("Missing Values")
     missing = X_tr.isnull().sum()
@@ -298,11 +304,13 @@ with tab3:
     st.write(f"Training rows after IQR filtering: **{prep_preview['rows_after_outlier']}**")
 
     st.subheader("Class Distribution After SMOTE")
-    fig, ax = plt.subplots(figsize=(3, 2.5))
-    sns.countplot(x=prep_preview["y_train_res"], ax=ax)
-    ax.set_title("Loan Approval Distribution (After SMOTE)")
-    plt.tight_layout()
-    st.pyplot(fig, use_container_width=False); plt.close()
+    col_a, col_b = st.columns([1, 2])
+    with col_a:
+        fig, ax = plt.subplots(figsize=(4, 3))
+        sns.countplot(x=prep_preview["y_train_res"], ax=ax)
+        ax.set_title("After SMOTE")
+        plt.tight_layout()
+        st.pyplot(fig, use_container_width=True); plt.close()
 
     st.subheader("Dimensionality Reduction")
     c1, c2, c3 = st.columns(3)
@@ -398,11 +406,13 @@ with tab4:
     from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
     st.subheader("Confusion Matrix")
     cm  = confusion_matrix(p["y_test"], p["predictions"])
-    fig, ax = plt.subplots(figsize=(3, 2.5))
-    ConfusionMatrixDisplay(cm).plot(ax=ax, colorbar=False)
-    ax.set_title("Confusion Matrix")
-    plt.tight_layout()
-    st.pyplot(fig, use_container_width=False); plt.close()
+    col_a, col_b = st.columns([1, 2])
+    with col_a:
+        fig, ax = plt.subplots(figsize=(4, 3))
+        ConfusionMatrixDisplay(cm).plot(ax=ax, colorbar=False)
+        ax.set_title("Confusion Matrix")
+        plt.tight_layout()
+        st.pyplot(fig, use_container_width=True); plt.close()
 
     st.markdown("""
     > **Model Evaluation Insight:**  
