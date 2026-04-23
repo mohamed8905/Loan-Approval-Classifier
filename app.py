@@ -17,11 +17,8 @@ st.title("🏦 Loan Approval Classifier")
 st.markdown("ML pipeline: preprocessing → dimensionality reduction → SVM training.")
 
 # ── Load data ────────────────────────────────────────────────────────────────
-try:
-    df = pd.read_csv("Loan.csv")
-except FileNotFoundError:
-    st.error("❌ `Loan.csv` not found. Make sure it is in the same directory as `app.py`.")
-    st.stop()
+df = pd.read_csv("Loan.csv")
+
 
 # ── Full pipeline function ───────────────────────────────────────────────────
 def run_pipeline(df, cv_choice):
@@ -183,9 +180,9 @@ with tab1:
     with st.expander("Training set descriptive statistics"):
         st.dataframe(X_train_raw.describe())
 
-    with st.expander("📄 View Original Notebook Code — Data Loading & Split"):
+    with st.expander("📄 View Notebook Code — Data Loading & Split"):
         st.code("""\
-df = pd.read_csv("C:\\\\Users\\\\aa\\\\OneDrive\\\\Desktop\\\\Data sets\\\\Loan.csv")
+df = pd.read_csv(r"\\Loan.csv")
 df = pd.DataFrame(df)
 df.head()
 
@@ -255,7 +252,7 @@ with tab2:
         st.warning(f"⚠️ {len(missing_cols)} column(s) have missing values.")
         st.dataframe(missing_cols.rename("Missing Count"))
 
-    with st.expander("📄 View Original Notebook Code — EDA"):
+    with st.expander("📄 View Notebook Code — EDA"):
         st.code("""\
 sns.countplot(x=y_train)
 plt.title("Loan Approval Distribution")
@@ -305,7 +302,7 @@ with tab3:
     c2.metric("Features after VarianceThreshold",  prep_preview["n_features_after"])
     c3.metric("PCA components (95% variance)",     prep_preview["n_pca_components"])
 
-    with st.expander("📄 View Original Notebook Code — Preprocessing & Reduction"):
+    with st.expander("📄 View Notebook Code — Preprocessing & Reduction"):
         st.code("""\
 # Outlier removal (IQR)
 col = ["AnnualIncome", "MonthlyIncome", "LoanAmount"]
@@ -389,7 +386,7 @@ with tab4:
     else:
         st.info("Click **Train Model** above to run the pipeline.")
 
-    with st.expander("📄 View Original Notebook Code — SVM Training & Evaluation"):
+    with st.expander("📄 View Notebook Code — SVM Training & Evaluation"):
         st.code("""\
 from sklearn.model_selection import GridSearchCV
 from sklearn.svm import SVC
@@ -487,6 +484,3 @@ with tab5:
                 st.success("✅ **Loan Approved** — The model predicts this applicant is likely to be approved.")
             else:
                 st.error("❌ **Loan Denied** — The model predicts this applicant is unlikely to be approved.")
-
-    with st.expander("📄 View Original Notebook Code — This tab has no original code"):
-        st.info("The Manual Prediction tab is a Streamlit-only feature — it was not part of the original notebook. It applies the trained pipeline to a single new applicant in real time.")
