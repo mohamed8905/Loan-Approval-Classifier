@@ -512,6 +512,3 @@ with tab5:
             st.success("✅ **Loan Approved** — The model predicts this applicant is likely to be approved.")
         else:
             st.error("❌ **Loan Denied** — The model predicts this applicant is unlikely to be approved.")
-
-    with st.expander("📄 View Notebook Code — Manual Prediction"):
-        st.info("This tab is a Streamlit-only feature — it was not part of the original notebook. It applies the trained pipeline to a single new applicant in real time.")
